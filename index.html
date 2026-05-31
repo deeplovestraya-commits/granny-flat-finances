@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Granny Flat Finances</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── Login ──────────────────────────────────────────────────────────────── -->
+<div id="login-overlay" class="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🏠</div>
+    <h1>Granny Flat Finances</h1>
+    <p class="login-subtitle">Enter your password to continue</p>
+    <form id="login-form">
+      <div class="form-group">
+        <input type="password" id="login-password" class="form-input" placeholder="Password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign in</button>
+      <p id="login-error" class="error-text hidden" style="margin-top:12px">Incorrect password. Try again.</p>
+    </form>
+  </div>
+</div>
+
+<!-- ── App shell ──────────────────────────────────────────────────────────── -->
+<div id="app" class="app hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">🏠</div>
+      <div>
+        <span class="sidebar-name">Granny Flat</span>
+        <span class="sidebar-sub">Finances</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+          <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+        </svg>
+        Dashboard
+      </button>
+      <button class="nav-item" data-view="income">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 1v14M3 6l5-5 5 5"/><path d="M2 14h12"/>
+        </svg>
+        Income
+      </button>
+      <button class="nav-item" data-view="expenses">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 15V1M3 10l5 5 5-5"/><path d="M2 2h12"/>
+        </svg>
+        Expenses
+      </button>
+      <button class="nav-item" data-view="reports">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+          <path d="M5 5h6M5 8h6M5 11h4"/>
+        </svg>
+        Reports
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-role-badge" id="user-role-badge">Admin</div>
+      <br>
+      <button class="btn-logout" id="logout-btn">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <!-- ── Dashboard ──────────────────────────────────────────────────────── -->
+    <div id="view-dashboard" class="view active">
+      <div class="view-header">
+        <h2>Dashboard</h2>
+        <div class="period-select">
+          <select id="dashboard-period">
+            <option value="this-month">This month</option>
+            <option value="last-month">Last month</option>
+            <option value="this-fy" selected>This financial year</option>
+            <option value="last-fy">Last financial year</option>
+            <option value="all-time">All time</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-label">Total income</div>
+          <div class="stat-value income" id="stat-income">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total expenses</div>
+          <div class="stat-value expense" id="stat-expenses">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Your share (50%)</div>
+          <div class="stat-value" id="stat-your-share">$0.00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">PK's share (50%)</div>
+          <div class="stat-value" id="stat-pk-share">$0.00</div>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <h3>Income by month</h3>
+          <canvas id="income-chart" height="200"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Expenses by category</h3>
+          <canvas id="expense-chart" height="200"></canvas>
+        </div>
+      </div>
+
+      <div class="recent-card">
+        <h3>Recent activity</h3>
+        <div id="recent-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Income ──────────────────────────────────────────────────────────── -->
+    <div id="view-income" class="view">
+      <div class="view-header">
+        <h2>Income</h2>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab active" data-tab="airbnb">Airbnb</button>
+        <button class="tab" data-tab="leases">Direct leases</button>
+      </div>
+
+      <!-- Airbnb tab -->
+      <div id="tab-airbnb" class="tab-content active">
+        <div class="upload-zone admin-only" id="airbnb-drop-zone">
+          <div class="upload-icon">📄</div>
+          <p class="upload-title">Drop your Airbnb earnings PDF here</p>
+          <p class="upload-sub">In Airbnb: go to Hosting → Finance → Earnings → select month → Download PDF</p>
+          <input type="file" id="airbnb-file-input" accept=".pdf" hidden>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('airbnb-file-input').click()">Browse file</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th class="text-right">Gross earnings</th>
+                <th class="text-right">Adjustments</th>
+                <th class="text-right">Service fees</th>
+                <th class="text-right">Tax withheld</th>
+                <th class="text-right">Net total</th>
+                <th class="text-right">Nights</th>
+                <th class="text-right admin-only"></th>
+              </tr>
+            </thead>
+            <tbody id="airbnb-tbody">
+              <tr><td colspan="8" class="empty-state">No Airbnb imports yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Leases tab -->
+      <div id="tab-leases" class="tab-content">
+        <div class="tab-actions admin-only">
+          <button type="button" class="btn btn-primary" id="add-lease-btn">+ Add lease</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Period</th>
+                <th class="text-right">Rent / week</th>
+                <th class="text-right">Total value</th>
+                <th>Notes</th>
+                <th class="admin-only"></th>
+              </tr>
+            </thead>
+            <tbody id="leases-tbody">
+              <tr><td colspan="6" class="empty-state">No leases yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Expenses ────────────────────────────────────────────────────────── -->
+    <div id="view-expenses" class="view">
+      <div class="view-header">
+        <h2>Expenses</h2>
+        <div class="view-actions">
+          <select id="expense-filter" class="form-input" style="width:auto">
+            <option value="all">All categories</option>
+            <option value="repairs">Repairs &amp; maintenance</option>
+            <option value="cleaning">Cleaning</option>
+            <option value="rates">Council rates</option>
+            <option value="water">Water &amp; sewerage</option>
+            <option value="insurance">Insurance</option>
+            <option value="utilities">Utilities</option>
+            <option value="mortgage">Mortgage interest</option>
+            <option value="gardening">Gardening</option>
+            <option value="pest">Pest control</option>
+            <option value="furnishings">Furnishings &amp; equipment</option>
+            <option value="linen">Linen &amp; supplies</option>
+            <option value="accounting">Accounting &amp; tax</option>
+            <option value="advertising">Advertising</option>
+            <option value="other">Other</option>
+          </select>
+          <button type="button" class="btn btn-primary admin-only" id="add-expense-btn">+ Add manually</button>
+        </div>
+      </div>
+
+      <div class="upload-zone admin-only" id="expense-drop-zone">
+        <div class="upload-icon">🧾</div>
+        <p class="upload-title">Drop an invoice or receipt here</p>
+        <p class="upload-sub">PDF — we'll extract what we can and ask you to confirm the details</p>
+        <input type="file" id="expense-file-input" accept=".pdf,.jpg,.jpeg,.png" hidden>
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('expense-file-input').click()">Browse file</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Vendor</th>
+              <th>Category</th>
+              <th class="text-right">Amount</th>
+              <th>Notes</th>
+              <th class="admin-only"></th>
+            </tr>
+          </thead>
+          <tbody id="expenses-tbody">
+            <tr><td colspan="6" class="empty-state">No expenses yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Reports ─────────────────────────────────────────────────────────── -->
+    <div id="view-reports" class="view">
+      <div class="view-header">
+        <h2>Financial year report</h2>
+        <div class="view-actions">
+          <select id="report-fy" class="form-input" style="width:auto"></select>
+          <button type="button" class="btn btn-primary" id="export-pdf-btn">Print / PDF</button>
+          <button type="button" class="btn btn-outline" id="export-csv-btn">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h3>Income</h3>
+        <table class="data-table">
+          <tbody>
+            <tr><td>Airbnb income</td><td class="text-right" id="report-airbnb-total">$0.00</td></tr>
+            <tr><td>Direct lease income</td><td class="text-right" id="report-lease-total">$0.00</td></tr>
+            <tr class="total-row"><td>Total gross income</td><td class="text-right" id="report-income-total">$0.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Expenses</h3>
+        <table class="data-table">
+          <tbody id="report-expenses-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>Net result &amp; split</h3>
+        <table class="data-table">
+          <tbody>
+            <tr class="total-row"><td>Net profit</td><td class="text-right" id="report-net">$0.00</td></tr>
+            <tr><td>Your share (50%)</td><td class="text-right" id="report-your-share">$0.00</td></tr>
+            <tr><td>PK's share (50%)</td><td class="text-right" id="report-pk-share">$0.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /app -->
+
+<!-- ── Add / Edit Lease Modal ─────────────────────────────────────────────── -->
+<div id="lease-modal" class="modal hidden">
+  <div class="modal-overlay"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="lease-modal-title">Add lease</h3>
+      <button class="modal-close" id="lease-modal-close">&#215;</button>
+    </div>
+    <form id="lease-form">
+      <div class="form-group">
+        <label>Tenant name</label>
+        <input type="text" id="lease-tenant" class="form-input" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start date</label>
+          <input type="date" id="lease-start" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>End date</label>
+          <input type="date" id="lease-end" class="form-input" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Rent per week (AUD)</label>
+          <input type="number" id="lease-rent-pw" class="form-input" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+          <label>Total value (auto-calculated)</label>
+          <input type="number" id="lease-total" class="form-input" step="0.01" readonly style="background:#f7f7f7">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="lease-notes" class="form-input" rows="2"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="lease-cancel-btn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save lease</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Confirm Expense Modal ──────────────────────────────────────────────── -->
+<div id="expense-modal" class="modal hidden">
+  <div class="modal-overlay"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Confirm expense</h3>
+      <button class="modal-close" id="expense-modal-close">&#215;</button>
+    </div>
+    <p class="modal-sub">Review the details below — correct anything before saving.</p>
+    <form id="expense-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="exp-date" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label>Amount (AUD)</label>
+          <input type="number" id="exp-amount" class="form-input" step="0.01" min="0" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Vendor / description</label>
+        <input type="text" id="exp-vendor" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select id="exp-category" class="form-input" required>
+          <option value="">Select a category...</option>
+          <option value="repairs">Repairs &amp; maintenance</option>
+          <option value="cleaning">Cleaning</option>
+          <option value="rates">Council rates</option>
+          <option value="water">Water &amp; sewerage</option>
+          <option value="insurance">Insurance</option>
+          <option value="utilities">Utilities</option>
+          <option value="mortgage">Mortgage interest</option>
+          <option value="gardening">Gardening</option>
+          <option value="pest">Pest control</option>
+          <option value="furnishings">Furnishings &amp; equipment</option>
+          <option value="linen">Linen &amp; supplies</option>
+          <option value="accounting">Accounting &amp; tax</option>
+          <option value="advertising">Advertising</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="exp-notes" class="form-input" rows="2"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="expense-cancel-btn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Processing overlay ─────────────────────────────────────────────────── -->
+<div id="processing-overlay" class="processing-overlay hidden">
+  <div class="processing-card">
+    <div class="spinner"></div>
+    <p id="processing-text">Processing...</p>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/pdf-parser.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
