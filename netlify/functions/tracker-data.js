@@ -7,11 +7,23 @@ exports.handler = async (event) => {
   try {
     store = getStore({ name: 'tracker', consistency: 'strong' });
   } catch (err) {
-    console.error('Failed to init Blobs store:', err);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Blobs store init failed: ' + err.message })
-    };
+    // Fallback: manual config if Netlify's auto-context isn't injected
+    const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN;
+    if (siteID && token) {
+      try {
+        store = getStore({ name: 'tracker', siteID, token, consistency: 'strong' });
+      } catch (err2) {
+        console.error('Manual Blobs init failed:', err2);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Blobs store init failed (manual): ' + err2.message }) };
+      }
+    } else {
+      console.error('Auto Blobs init failed, no manual creds:', err);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Blobs store init failed: ' + err.message })
+      };
+    }
   }
 
   if (event.httpMethod === 'GET') {
