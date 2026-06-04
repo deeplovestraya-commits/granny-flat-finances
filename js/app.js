@@ -142,15 +142,25 @@ async function apiLoadData() {
 }
 
 async function apiSaveData() {
-  const res = await fetch('/.netlify/functions/tracker-data', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Tracker-Pass': state.pass
-    },
-    body: JSON.stringify(state.data)
-  });
-  return res.ok;
+  try {
+    const res = await fetch('/.netlify/functions/tracker-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tracker-Pass': state.pass
+      },
+      body: JSON.stringify(state.data)
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      alert(`Save failed (${res.status}): ${errText}\n\nYour changes have NOT been saved. Check Netlify function logs.`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    alert(`Save failed: ${err.message}\n\nYour changes have NOT been saved.`);
+    return false;
+  }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
