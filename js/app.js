@@ -548,17 +548,39 @@ if (expenseFileInput) {
 }
 expenseFilter?.addEventListener('change', renderExpenses);
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 async function handleExpenseFile(file) {
-  showProcessing('Reading document...');
+  showProcessing('Reading document with OCR...');
   let parsed = { date: isoToday(), amount: null, vendor: '' };
 
   try {
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      const text = await extractPDFText(file);
-      parsed = { ...parsed, ...parseExpensePDF(text) };
+    const data = await fileToBase64(file);
+    const mediaType = file.type ||
+      (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
+    const res = await fetch('/.netlify/functions/parse-document', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tracker-Pass': state.pass
+      },
+      body: JSON.stringify({ data, mediaType })
+    });
+
+    if (res.ok) {
+      const ocr = await res.json();
+      parsed = { ...parsed, ...ocr };
     }
   } catch (err) {
-    console.warn('PDF parse error', err);
+    console.warn('OCR error', err);
   }
 
   hideProcessing();
