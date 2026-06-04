@@ -3,27 +3,25 @@ const { getStore } = require('@netlify/blobs');
 const EMPTY = { version: '1.0', airbnb_imports: [], leases: [], expenses: [] };
 
 exports.handler = async (event) => {
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+
   let store;
   try {
-    store = getStore({ name: 'tracker', consistency: 'strong' });
-  } catch (err) {
-    // Fallback: manual config if Netlify's auto-context isn't injected
-    const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
-    const token = process.env.NETLIFY_BLOBS_TOKEN;
     if (siteID && token) {
-      try {
-        store = getStore({ name: 'tracker', siteID, token, consistency: 'strong' });
-      } catch (err2) {
-        console.error('Manual Blobs init failed:', err2);
-        return { statusCode: 500, body: JSON.stringify({ error: 'Blobs store init failed (manual): ' + err2.message }) };
-      }
+      store = getStore({ name: 'tracker', siteID, token, consistency: 'strong' });
     } else {
-      console.error('Auto Blobs init failed, no manual creds:', err);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Blobs store init failed: ' + err.message })
-      };
+      store = getStore({ name: 'tracker', consistency: 'strong' });
     }
+  } catch (err) {
+    console.error('Blobs init failed:', err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: 'Blobs init failed: ' + err.message +
+          ' — Add env vars NETLIFY_SITE_ID and NETLIFY_BLOBS_TOKEN in Netlify site settings.'
+      })
+    };
   }
 
   if (event.httpMethod === 'GET') {
