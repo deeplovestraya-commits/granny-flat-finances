@@ -9,9 +9,9 @@ exports.handler = async (event) => {
   let store;
   try {
     if (siteID && token) {
-      store = getStore({ name: 'tracker', siteID, token, consistency: 'strong' });
+      store = getStore({ name: 'tracker', siteID, token });
     } else {
-      store = getStore({ name: 'tracker', consistency: 'strong' });
+      store = getStore({ name: 'tracker' });
     }
   } catch (err) {
     console.error('Blobs init failed:', err);
