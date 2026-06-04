@@ -47,10 +47,9 @@ function isoToday() {
 
 // Australian financial year: 1 Jul – 30 Jun
 function fyBounds(label) {
-  // label like "FY2025–26" or "this-fy" / "last-fy"
   const now = new Date();
   const cy = now.getFullYear();
-  const cm = now.getMonth(); // 0-based; July = 6
+  const cm = now.getMonth();
 
   let startYear = cm >= 6 ? cy : cy - 1;
   if (label === 'last-fy') startYear -= 1;
@@ -60,24 +59,71 @@ function fyBounds(label) {
   };
 }
 
-function periodFilter(dateISO, period) {
-  if (!dateISO) return false;
+// Return [startISO, endISO] inclusive for a named period
+function periodBounds(period) {
   const now = new Date();
-  const d = new Date(dateISO);
-
-  if (period === 'all-time') return true;
+  if (period === 'all-time') return ['0000-01-01', '9999-12-31'];
   if (period === 'this-month') {
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    const y = now.getFullYear(), m = now.getMonth();
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)];
   }
   if (period === 'last-month') {
-    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+    const y = now.getFullYear(), m = now.getMonth() - 1;
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)];
   }
   if (period === 'this-fy' || period === 'last-fy') {
     const { start, end } = fyBounds(period);
-    return dateISO >= start && dateISO <= end;
+    return [start, end];
   }
-  return true;
+  return ['0000-01-01', '9999-12-31'];
+}
+
+function periodFilter(dateISO, period) {
+  if (!dateISO) return false;
+  const [start, end] = periodBounds(period);
+  return dateISO >= start && dateISO <= end;
+}
+
+// Pro-rata a lease into the portion that falls inside [periodStart, periodEnd].
+// Returns { amount, overlapStart, overlapEnd } or null if no overlap.
+function leaseOverlap(lease, periodStart, periodEnd) {
+  if (!lease.start_date || !lease.end_date) return null;
+  const oStart = lease.start_date > periodStart ? lease.start_date : periodStart;
+  const oEnd   = lease.end_date   < periodEnd   ? lease.end_date   : periodEnd;
+  if (oStart > oEnd) return null;
+
+  const totalDays   = (new Date(lease.end_date) - new Date(lease.start_date)) / 86400000 + 1;
+  const overlapDays = (new Date(oEnd) - new Date(oStart)) / 86400000 + 1;
+  const amount = (lease.total_value || 0) * (overlapDays / totalDays);
+  return { amount, overlapStart: oStart, overlapEnd: oEnd };
+}
+
+// Spread lease income across each calendar month it touches inside the period.
+function leaseMonthlyBreakdown(lease, periodStart, periodEnd) {
+  const ov = leaseOverlap(lease, periodStart, periodEnd);
+  if (!ov) return [];
+
+  const start = new Date(ov.overlapStart);
+  const end   = new Date(ov.overlapEnd);
+  const totalOverlapDays = (end - start) / 86400000 + 1;
+  const result = [];
+
+  let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor <= end) {
+    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const monthEnd   = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+    const segStart = monthStart < start ? start : monthStart;
+    const segEnd   = monthEnd   > end   ? end   : monthEnd;
+    const segDays  = (segEnd - segStart) / 86400000 + 1;
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+    result.push({ month: key, amount: ov.amount * (segDays / totalOverlapDays) });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return result;
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -184,13 +230,16 @@ const periodSelect = document.getElementById('dashboard-period');
 periodSelect.addEventListener('change', renderDashboard);
 
 function getFilteredTotals(period) {
+  const [pStart, pEnd] = periodBounds(period);
+
   const airbnbIncome = state.data.airbnb_imports
     .filter(r => periodFilter(r.period_start, period))
     .reduce((s, r) => s + (r.total || 0), 0);
 
   const leaseIncome = state.data.leases
-    .filter(r => periodFilter(r.start_date, period))
-    .reduce((s, r) => s + (r.total_value || 0), 0);
+    .map(r => leaseOverlap(r, pStart, pEnd))
+    .filter(Boolean)
+    .reduce((s, o) => s + o.amount, 0);
 
   const totalExpenses = state.data.expenses
     .filter(r => periodFilter(r.date, period))
@@ -227,12 +276,16 @@ function renderIncomeChart(period) {
     months[key] = (months[key] || 0) + amount;
   };
 
+  const [pStart, pEnd] = periodBounds(period);
+
   state.data.airbnb_imports
     .filter(r => periodFilter(r.period_start, period))
     .forEach(r => addToMonth(r.period_start, r.total || 0));
-  state.data.leases
-    .filter(r => periodFilter(r.start_date, period))
-    .forEach(r => addToMonth(r.start_date, r.total_value || 0));
+  state.data.leases.forEach(r => {
+    leaseMonthlyBreakdown(r, pStart, pEnd).forEach(({ month, amount }) => {
+      months[month] = (months[month] || 0) + amount;
+    });
+  });
 
   const labels = Object.keys(months).sort();
   const values = labels.map(l => months[l]);
@@ -687,8 +740,9 @@ function renderReport() {
     .reduce((s, r) => s + (r.total || 0), 0);
 
   const leaseTotal = state.data.leases
-    .filter(r => inRange(r.start_date || ''))
-    .reduce((s, r) => s + (r.total_value || 0), 0);
+    .map(r => leaseOverlap(r, start, end))
+    .filter(Boolean)
+    .reduce((s, o) => s + o.amount, 0);
 
   const totalIncome = airbnbTotal + leaseTotal;
 
@@ -735,9 +789,12 @@ document.getElementById('export-csv-btn')?.addEventListener('click', () => {
     ...state.data.airbnb_imports.filter(r => inRange(r.period_start || '')).map(r =>
       ['Income – Airbnb', r.period_start, `Airbnb ${fmtDate(r.period_start)}–${fmtDate(r.period_end)}`, 'Airbnb', r.total]
     ),
-    ...state.data.leases.filter(r => inRange(r.start_date || '')).map(r =>
-      ['Income – Lease', r.start_date, `Lease – ${r.tenant_name}`, 'Direct lease', r.total_value]
-    ),
+    ...state.data.leases
+      .map(r => ({ r, ov: leaseOverlap(r, start, end) }))
+      .filter(x => x.ov)
+      .map(({ r, ov }) =>
+        ['Income – Lease', ov.overlapStart, `Lease – ${r.tenant_name} (${fmtDate(ov.overlapStart)}–${fmtDate(ov.overlapEnd)})`, 'Direct lease', ov.amount.toFixed(2)]
+      ),
     ...state.data.expenses.filter(r => inRange(r.date || '')).map(r =>
       ['Expense', r.date, r.vendor, EXPENSE_LABELS[r.category] || r.category, -r.amount]
     )
